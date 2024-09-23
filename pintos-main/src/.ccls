@@ -1,0 +1,10 @@
+gcc
+-Wall
+-Werror
+-Wextra
+-pedantic
+-Ilib/
+-Ilib/kernel
+-Isrc/
+-I./
+-nostdinc
