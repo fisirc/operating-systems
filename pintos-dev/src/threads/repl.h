@@ -38,7 +38,7 @@ strncmp(const char* s1, const char* s2, size_t n)
 size_t
 getin(Line* buffaddr, size_t upto)
 {
-    printf("culOS> ");
+    printf("$ ");
     buffaddr->len = 0;
     size_t i = 0x00;
     for (; i < upto; i++) {
