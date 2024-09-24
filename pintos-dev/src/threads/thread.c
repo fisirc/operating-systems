@@ -208,42 +208,48 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux)
 {
-  struct thread *t;
-  struct kernel_thread_frame *kf;
-  struct switch_entry_frame *ef;
-  struct switch_threads_frame *sf;
-  tid_t tid;
+    struct thread *t;
+    struct kernel_thread_frame *kf;
+    struct switch_entry_frame *ef;
+    struct switch_threads_frame *sf;
+    tid_t tid;
 
-  ASSERT (function != NULL);
+    ASSERT (function != NULL);
 
-  /* Allocate thread. */
-  t = palloc_get_page (PAL_ZERO);
-  if (t == NULL)
-    return TID_ERROR;
+    /* Allocate thread. */
+    t = palloc_get_page (PAL_ZERO);
+    if (t == NULL)
+        return TID_ERROR;
 
-  /* Initialize thread. */
-  init_thread (t, name, priority);
-  tid = t->tid = allocate_tid ();
+    /* Initialize thread. */
+    init_thread (t, name, priority);
+    tid = t->tid = allocate_tid ();
 
-  /* Stack frame for kernel_thread(). */
-  kf = alloc_frame (t, sizeof *kf);
-  kf->eip = NULL;
-  kf->function = function;
-  kf->aux = aux;
+    /* Stack frame for kernel_thread(). */
+    kf = alloc_frame (t, sizeof *kf);
+    kf->eip = NULL;
+    kf->function = function;
+    kf->aux = aux;
 
-  /* Stack frame for switch_entry(). */
-  ef = alloc_frame (t, sizeof *ef);
-  ef->eip = (void (*) (void)) kernel_thread;
+    /* Stack frame for switch_entry(). */
+    ef = alloc_frame (t, sizeof *ef);
+    ef->eip = (void (*) (void)) kernel_thread;
 
-  /* Stack frame for switch_threads(). */
-  sf = alloc_frame (t, sizeof *sf);
-  sf->eip = switch_entry;
-  sf->ebp = 0;
+    /* Stack frame for switch_threads(). */
+    sf = alloc_frame (t, sizeof *sf);
+    sf->eip = switch_entry;
+    sf->ebp = 0;
 
-  /* Add to run queue. */
-  thread_unblock (t);
+    /* Add to run queue. */
+    thread_unblock (t);
 
-  return tid;
+    /// FIXME
+    /* Checking in for the current thread's priority */
+    if (t->priority > thread_get_priority())
+        thread_yield();
+    ///
+
+    return tid;
 }
 
 /** Puts the current thread to sleep.  It will not be scheduled
@@ -262,6 +268,15 @@ thread_block (void)
   schedule ();
 }
 
+static bool
+thread_priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+    struct thread * a_thr =  list_entry(a, struct thread, elem);
+    struct thread * b_thr =  list_entry(b, struct thread, elem);
+    return (a_thr->priority) > (b_thr->priority);
+}
+
+
 /** Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -273,15 +288,20 @@ thread_block (void)
 void
 thread_unblock (struct thread *t)
 {
-  enum intr_level old_level;
+    enum intr_level old_level;
 
-  ASSERT (is_thread (t));
+    ASSERT (is_thread (t));
 
-  old_level = intr_disable ();
-  ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
-  t->status = THREAD_READY;
-  intr_set_level (old_level);
+    old_level = intr_disable ();
+    ASSERT (t->status == THREAD_BLOCKED);
+
+    /// FIXME
+    // list_push_back (&ready_list, &t->elem);
+    list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp, NULL);
+    ///
+
+    t->status = THREAD_READY;
+    intr_set_level (old_level);
 }
 
 /** Returns the name of the running thread. */
@@ -343,17 +363,21 @@ thread_exit (void)
 void
 thread_yield (void)
 {
-  struct thread *cur = thread_current ();
-  enum intr_level old_level;
+    struct thread *cur = thread_current ();
+    enum intr_level old_level;
 
-  ASSERT (!intr_context ());
+    ASSERT (!intr_context ());
 
-  old_level = intr_disable ();
-  if (cur != idle_thread)
-    list_push_back (&ready_list, &cur->elem);
-  cur->status = THREAD_READY;
-  schedule ();
-  intr_set_level (old_level);
+    old_level = intr_disable ();
+    if (cur != idle_thread)
+        /// FIXME
+        /// list_push_back (&ready_list, &cur->elem);
+        list_insert_ordered(&ready_list, &cur->elem, thread_priority_cmp, NULL);
+        ///
+
+    cur->status = THREAD_READY;
+    schedule ();
+    intr_set_level (old_level);
 }
 
 
@@ -369,7 +393,6 @@ thread_sleep_until (int64_t ticks)
 
     ASSERT (!intr_context ());
 
-    printf("a thread was called to sleep with %lld ticks\n", ticks);
     old_level = intr_disable ();
     if (cur != idle_thread)
         list_insert_ordered(&sleep_list, &cur->elem, thread_tick_less, NULL);
@@ -399,7 +422,16 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+    thread_current ()->priority = new_priority;
+
+    /// FIXME
+    /* Checking in for the current thread's priority vs highest ready priority */
+    if (list_size(&ready_list) == 0)
+        return;
+
+    struct thread * head = list_entry(ready_list.head.next, struct thread, elem);
+    if (head->priority > new_priority)
+        thread_yield();
 }
 
 /** Returns the current thread's priority. */
