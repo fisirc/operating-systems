@@ -1,7 +1,7 @@
 # The Context Switcher
 
 Before actually diving into the code, there are some architecture details that
-we must know that PintOS is designed to work under a x86 arch of 32 bits and the
+we must know. PintOS is designed to work under a x86 arch of 32 bits and the
 IA-32 instruction set, under this fact we can be totally sure that an `int` type
 is of 32 bits, just as a `uintptr_t` one.
 
