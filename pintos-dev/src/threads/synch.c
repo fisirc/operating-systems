@@ -31,6 +31,7 @@
 #include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "donations.h"
 
 /** Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -115,11 +116,27 @@ sema_up (struct semaphore *sema)
     ASSERT (sema != NULL);
 
     old_level = intr_disable ();
+    sema->value++;
+
+    /// FIXME
     if (!list_empty (&sema->waiters)) {
         list_sort(&sema->waiters, thread_priority_cmp, NULL);
-        thread_unblock (list_entry (list_pop_front (&sema->waiters), struct thread, elem));
+        struct thread * cur = thread_current();
+        struct thread * max_pr_waiter = list_entry (list_pop_front (&sema->waiters), struct thread, elem);
+        thread_unblock (max_pr_waiter);
+
+        if (list_size(&cur->donor_list) != 0) {
+            struct thread * max_pr_donor = list_entry (cur->donor_list.head.next, struct thread, donors_elem);
+            if (max_pr_donor == max_pr_waiter)
+                remove_donation(max_pr_donor, cur);
+        }
+
+        if ((max_pr_waiter->og_priority) > (thread_current()->og_priority)) {
+            thread_yield();
+        }
     }
-    sema->value++;
+    ///
+
     intr_set_level (old_level);
 }
 
@@ -195,12 +212,22 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
-  ASSERT (lock != NULL);
-  ASSERT (!intr_context ());
-  ASSERT (!lock_held_by_current_thread (lock));
+    ASSERT (lock != NULL);
+    ASSERT (!intr_context ());
+    ASSERT (!lock_held_by_current_thread (lock));
 
-  sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+    /// FIXME
+    struct thread * og_holder = lock->holder;
+    if (og_holder != NULL) {
+        struct thread * cur = thread_current();
+        if (og_holder->priority < cur->priority) {
+            donate_to_thread(cur, og_holder);
+        }
+    }
+    ///
+
+    sema_down (&lock->semaphore);
+    lock->holder = thread_current ();
 }
 
 /** Tries to acquires LOCK and returns true if successful or false
@@ -231,11 +258,18 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock)
 {
-  ASSERT (lock != NULL);
-  ASSERT (lock_held_by_current_thread (lock));
+    ASSERT (lock != NULL);
+    ASSERT (lock_held_by_current_thread (lock));
 
-  lock->holder = NULL;
-  sema_up (&lock->semaphore);
+    /// FIXME
+    //if (list_size(&lock->holder->donor_list) != 0) {
+    //    struct thread * max_pr = list_entry (list_pop_front (&lock->holder->donor_list), struct thread, donors_elem);
+    //    remove_donation(max_pr, thread_current());
+    //}
+    ///
+
+    lock->holder = NULL;
+    sema_up (&lock->semaphore);
 }
 
 /** Returns true if the current thread holds LOCK, false
