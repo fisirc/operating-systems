@@ -267,6 +267,8 @@ thread_block (void)
   schedule ();
 }
 
+/// FIXME
+/// my own exported functions block
 bool
 thread_priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
@@ -274,6 +276,18 @@ thread_priority_cmp (const struct list_elem *a, const struct list_elem *b, void 
     struct thread * b_thr =  list_entry(b, struct thread, elem);
     return (a_thr->priority) > (b_thr->priority);
 }
+
+void
+thread_priority_update (struct thread * t)
+{
+    if (list_size(&t->donor_list) == 0) {
+        t->priority = t->og_priority;
+        return;
+    }
+
+    t->priority = list_entry(t->donor_list.head.next, struct thread, donors_elem)->priority;
+}
+///
 
 
 /** Transitions a blocked thread T to the ready-to-run state.
@@ -546,22 +560,27 @@ is_thread (struct thread *t)
 static void
 init_thread (struct thread *t, const char *name, int priority)
 {
-  enum intr_level old_level;
+    enum intr_level old_level;
 
-  ASSERT (t != NULL);
-  ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
-  ASSERT (name != NULL);
+    ASSERT (t != NULL);
+    ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
+    ASSERT (name != NULL);
 
-  memset (t, 0, sizeof *t);
-  t->status = THREAD_BLOCKED;
-  strlcpy (t->name, name, sizeof t->name);
-  t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
-  t->magic = THREAD_MAGIC;
+    memset (t, 0, sizeof *t);
+    t->status = THREAD_BLOCKED;
+    strlcpy (t->name, name, sizeof t->name);
+    t->stack = (uint8_t *) t + PGSIZE;
+    t->priority = priority;
+    t->og_priority = priority;
+    t->magic = THREAD_MAGIC;
 
-  old_level = intr_disable ();
-  list_push_back (&all_list, &t->allelem);
-  intr_set_level (old_level);
+    /// FIXME
+    list_init(&t->donor_list);
+    ///
+
+    old_level = intr_disable ();
+    list_push_back (&all_list, &t->allelem);
+    intr_set_level (old_level);
 }
 
 /** Allocates a SIZE-byte frame at the top of thread T's stack and
