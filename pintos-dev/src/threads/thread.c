@@ -130,12 +130,11 @@ update_sleepers (int64_t ticks)
     enum intr_level old_level = intr_disable ();
     size_t len = list_size(&sleep_list);
     while (len--) {
-        struct thread * sleeper = list_entry (list_pop_front (&sleep_list), struct thread, elem);
-        if (sleeper->wakeup_tick > ticks) {
-            list_insert_ordered(&sleep_list, &sleeper->elem, thread_tick_less, NULL);
+        struct thread * head_sleeper = list_entry(sleep_list.head.next, struct thread, elem);
+        if (head_sleeper->wakeup_tick > ticks)
             break;
-        }
 
+        struct thread * sleeper = list_entry (list_pop_front (&sleep_list), struct thread, elem);
         thread_unblock(sleeper);
     }
 
@@ -269,7 +268,7 @@ thread_block (void)
   schedule ();
 }
 
-static bool
+bool
 thread_priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
     struct thread * a_thr =  list_entry(a, struct thread, elem);
