@@ -33,6 +33,9 @@
 #include "threads/thread.h"
 #include "donations.h"
 
+
+#define is_interior(elem) (elem != NULL && elem->prev != NULL && elem->next != NULL)
+
 /** Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -45,10 +48,10 @@
 void
 sema_init (struct semaphore *sema, unsigned value)
 {
-  ASSERT (sema != NULL);
+    ASSERT (sema != NULL);
 
-  sema->value = value;
-  list_init (&sema->waiters);
+    sema->value = value;
+    list_init (&sema->waiters);
 }
 
 /** Down or "P" operation on a semaphore.  Waits for SEMA's value
@@ -66,6 +69,12 @@ sema_down (struct semaphore *sema)
     ASSERT (sema != NULL);
     ASSERT (!intr_context ());
 
+    struct thread * cur = thread_current();
+    if (cur->waiting_for_thread != NULL) {
+        if ((cur->waiting_for_thread->priority) < (cur->priority))
+            donate_to_thread(cur, cur->waiting_for_thread);
+    }
+
     old_level = intr_disable ();
     while (sema->value == 0) {
         /// FIXME
@@ -74,6 +83,14 @@ sema_down (struct semaphore *sema)
         ///
         thread_block ();
     }
+
+    /// FIXME
+    if (thread_current()->waiting_for_thread != NULL) {
+        if (is_interior((&thread_current()->donors_elem)))
+            remove_donation(thread_current(), thread_current()->waiting_for_thread);
+    }
+    ///
+
     sema->value--;
     intr_set_level (old_level);
 }
@@ -86,26 +103,23 @@ sema_down (struct semaphore *sema)
 bool
 sema_try_down (struct semaphore *sema)
 {
-  enum intr_level old_level;
-  bool success;
+    enum intr_level old_level;
+    bool success;
 
-  ASSERT (sema != NULL);
+    ASSERT (sema != NULL);
 
-  old_level = intr_disable ();
-  if (sema->value > 0)
+    old_level = intr_disable ();
+    if (sema->value > 0)
     {
-      sema->value--;
-      success = true;
+        sema->value--;
+        success = true;
     }
-  else
-    success = false;
-  intr_set_level (old_level);
+    else
+        success = false;
+    intr_set_level (old_level);
 
-  return success;
+    return success;
 }
-
-
-#define is_interior(elem) (elem != NULL && elem->prev != NULL && elem->next != NULL)
 
 
 /** Up or "V" operation on a semaphore.  Increments SEMA's value
@@ -201,10 +215,10 @@ sema_test_helper (void *sema_)
 void
 lock_init (struct lock *lock)
 {
-  ASSERT (lock != NULL);
+    ASSERT (lock != NULL);
 
-  lock->holder = NULL;
-  sema_init (&lock->semaphore, 1);
+    lock->holder = NULL;
+    sema_init (&lock->semaphore, 1);
 }
 
 /** Acquires LOCK, sleeping until it becomes available if
@@ -223,26 +237,12 @@ lock_acquire (struct lock *lock)
     ASSERT (!lock_held_by_current_thread (lock));
 
     /// FIXME
-    struct thread * og_holder = lock->holder;
     struct thread * cur = thread_current();
-
-    cur->waiting_for_thread = og_holder;
-
-    if (og_holder != NULL) {
-        if ((og_holder->priority) < (cur->priority))
-            donate_to_thread(cur, og_holder);
-    }
+    cur->waiting_for_thread = lock->holder;
     ///
 
     sema_down (&lock->semaphore);
     lock->holder = cur;
-
-    /// FIXME
-    if (og_holder != NULL) {
-        if (is_interior((&lock->holder->donors_elem)))
-            remove_donation(lock->holder, og_holder);
-    }
-    ///
 }
 
 /** Tries to acquires LOCK and returns true if successful or false
@@ -254,15 +254,15 @@ lock_acquire (struct lock *lock)
 bool
 lock_try_acquire (struct lock *lock)
 {
-  bool success;
+    bool success;
 
-  ASSERT (lock != NULL);
-  ASSERT (!lock_held_by_current_thread (lock));
+    ASSERT (lock != NULL);
+    ASSERT (!lock_held_by_current_thread (lock));
 
-  success = sema_try_down (&lock->semaphore);
-  if (success)
-    lock->holder = thread_current ();
-  return success;
+    success = sema_try_down (&lock->semaphore);
+    if (success)
+        lock->holder = thread_current ();
+    return success;
 }
 
 /** Releases LOCK, which must be owned by the current thread.
@@ -285,9 +285,9 @@ lock_release (struct lock *lock)
 bool
 lock_held_by_current_thread (const struct lock *lock)
 {
-  ASSERT (lock != NULL);
+    ASSERT (lock != NULL);
 
-  return lock->holder == thread_current ();
+    return lock->holder == thread_current ();
 }
 
 /** One semaphore in a list. */
@@ -303,9 +303,9 @@ struct semaphore_elem
 void
 cond_init (struct condition *cond)
 {
-  ASSERT (cond != NULL);
+    ASSERT (cond != NULL);
 
-  list_init (&cond->waiters);
+    list_init (&cond->waiters);
 }
 
 /** Atomically releases LOCK and waits for COND to be signaled by
