@@ -20,23 +20,23 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
-/** Initial thread, the thread running init.c:main(). */
-static struct thread *initial_thread;
-
 /** List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-
-/** List of processes in THREAD_BLOCKED state that are sleeping until some
-   predetermined tick value. */
-static struct list sleep_list;
 
 /** List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/** List of processes in THREAD_BLOCKED state that are sleeping until some
+   predetermined tick value. */
+static struct list sleep_list;
+
 /** Idle thread. */
 static struct thread *idle_thread;
+
+/** Initial thread, the thread running init.c:main(). */
+static struct thread *initial_thread;
 
 /** Lock used by allocate_tid(). */
 static struct lock tid_lock;
@@ -59,9 +59,11 @@ static long long user_ticks;    /**< # of timer ticks in user programs. */
 static unsigned thread_ticks;   /**< # of timer ticks since last yield. */
 
 /** If false (default), use round-robin scheduler.
-   If true, use multi-level feedback queue scheduler.
+   If true, use multi-level feedback queue scheduler. (mfqs)
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+// lil bro will be the global variable that represents the # of threads ready to run during the last minute
+int load_avg;
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -114,7 +116,6 @@ thread_tick_less (const struct list_elem *a, const struct list_elem *b, void *au
     struct thread * b_thr =  list_entry(b, struct thread, elem);
     return (a_thr->wakeup_tick) < (b_thr->wakeup_tick);
 }
-
 
 void
 update_sleepers (int64_t ticks)
