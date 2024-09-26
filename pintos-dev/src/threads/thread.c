@@ -286,6 +286,9 @@ thread_priority_update (struct thread * t)
     }
 
     t->priority = list_entry(t->donor_list.head.next, struct thread, donors_elem)->priority;
+
+    if (t->waiting_for_thread != NULL)
+        thread_priority_update(t->waiting_for_thread);
 }
 
 void
