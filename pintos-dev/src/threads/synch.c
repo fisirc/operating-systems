@@ -104,6 +104,10 @@ sema_try_down (struct semaphore *sema)
   return success;
 }
 
+
+#define is_interior(elem) (elem != NULL && elem->prev != NULL && elem->next != NULL)
+
+
 /** Up or "V" operation on a semaphore.  Increments SEMA's value
    and wakes up one thread of those waiting for SEMA, if any.
 
@@ -120,25 +124,27 @@ sema_up (struct semaphore *sema)
 
     /// FIXME
     if (!list_empty (&sema->waiters)) {
-        list_sort(&sema->waiters, thread_priority_cmp, NULL);
-        struct thread * cur = thread_current();
         struct thread * max_pr_waiter = list_entry (list_pop_front (&sema->waiters), struct thread, elem);
         thread_unblock (max_pr_waiter);
+        struct thread * cur = thread_current();
 
-        if (list_size(&cur->donor_list) != 0) {
-            struct thread * max_pr_donor = list_entry (cur->donor_list.head.next, struct thread, donors_elem);
-            if (max_pr_donor == max_pr_waiter)
-                remove_donation(max_pr_donor, cur);
+        if (is_interior((&max_pr_waiter->donors_elem)) && max_pr_waiter->waiting_for_thread != NULL) {
+            remove_donation(max_pr_waiter, max_pr_waiter->waiting_for_thread);
+            update_ready_list();
         }
 
-        if ((max_pr_waiter->og_priority) > (thread_current()->og_priority)) {
+        if ((max_pr_waiter->priority) > (cur->og_priority)) {
             thread_yield();
         }
+
+        list_sort(&sema->waiters, thread_priority_cmp, NULL);
     }
     ///
 
     intr_set_level (old_level);
 }
+
+
 
 static void sema_test_helper (void *sema_);
 
@@ -218,16 +224,25 @@ lock_acquire (struct lock *lock)
 
     /// FIXME
     struct thread * og_holder = lock->holder;
+    struct thread * cur = thread_current();
+
+    cur->waiting_for_thread = og_holder;
+
     if (og_holder != NULL) {
-        struct thread * cur = thread_current();
-        if (og_holder->priority < cur->priority) {
+        if ((og_holder->priority) < (cur->priority))
             donate_to_thread(cur, og_holder);
-        }
     }
     ///
 
     sema_down (&lock->semaphore);
-    lock->holder = thread_current ();
+    lock->holder = cur;
+
+    /// FIXME
+    if (og_holder != NULL) {
+        if (is_interior((&lock->holder->donors_elem)))
+            remove_donation(lock->holder, og_holder);
+    }
+    ///
 }
 
 /** Tries to acquires LOCK and returns true if successful or false
@@ -260,14 +275,6 @@ lock_release (struct lock *lock)
 {
     ASSERT (lock != NULL);
     ASSERT (lock_held_by_current_thread (lock));
-
-    /// FIXME
-    //if (list_size(&lock->holder->donor_list) != 0) {
-    //    struct thread * max_pr = list_entry (list_pop_front (&lock->holder->donor_list), struct thread, donors_elem);
-    //    remove_donation(max_pr, thread_current());
-    //}
-    ///
-
     lock->holder = NULL;
     sema_up (&lock->semaphore);
 }

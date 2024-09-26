@@ -287,6 +287,12 @@ thread_priority_update (struct thread * t)
 
     t->priority = list_entry(t->donor_list.head.next, struct thread, donors_elem)->priority;
 }
+
+void
+update_ready_list (void)
+{
+    list_sort(&ready_list, thread_priority_cmp, NULL);
+}
 ///
 
 
