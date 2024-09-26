@@ -299,7 +299,6 @@ update_ready_list (void)
 }
 ///
 
-
 /** Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
