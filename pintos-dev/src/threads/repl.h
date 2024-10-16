@@ -16,6 +16,11 @@ typedef struct {
     size_t len;
 } Line;
 
+typedef struct {
+    char* cmd;
+    uint8_t (*fn)(void);
+} Router;
+
 int strncmp(const char*, const char*, size_t);
 size_t getin(Line*, size_t);
 uint8_t routecmd(Line*);
@@ -43,6 +48,9 @@ getin(Line* buffaddr, size_t upto)
     size_t i = 0x00;
     for (; i < upto; i++) {
         uint8_t ch = input_getc();
+        if (ch == '\r')
+            ch = '\n';
+
         putchar(ch);
         if (ch == '\n') {
             break;
@@ -64,10 +72,7 @@ routecmd(Line* cmd)
         return 1;
     }
 
-    struct route {
-        char* cmd;
-        uint8_t (*fn)(void);
-    } routes[] = {
+     Router routes[] = {
         newroute("whoami", whoami),
         newroute("ls", ls),
         newroute("exit", exithandler),

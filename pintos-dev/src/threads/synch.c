@@ -154,9 +154,10 @@ sema_up (struct semaphore *sema)
         if ((max_pr_waiter->priority) > (cur->og_priority)) {
             thread_yield();
         }
-
-        list_sort(&sema->waiters, thread_priority_cmp, NULL);
     }
+
+    if (sema->waiters.head.next != NULL)
+        list_sort(&sema->waiters, thread_priority_cmp, NULL);
     ///
 
     intr_set_level (old_level);
