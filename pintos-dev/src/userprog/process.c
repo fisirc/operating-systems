@@ -82,9 +82,10 @@ start_process (void *cmdline_)
     total_len += tok_len;
     if_.esp -= tok_len;
     argv[argc] = if_.esp;
-    for (int i = 0; i < tok_len; i++) {
-      *(char *)(if_.esp + i) = tok[i];
-    }
+    // for (int i = 0; i < tok_len; i++) {
+    //   *(char *)(if_.esp + i) = tok[i];
+    // }
+    memcpy(if_.esp, tok, tok_len);
     argc++;
   }
   argv[argc] = 0;
@@ -93,9 +94,10 @@ start_process (void *cmdline_)
   int pad_size = 4 - (total_len % 4);
   if (pad_size != 4) {
     if_.esp -= pad_size;
-    for (int i = 0; i < pad_size; i++) {
-      *(char *)(if_.esp + i) = 0;
-    }
+    // for (int i = 0; i < pad_size; i++) {
+    //   *(char *)(if_.esp + i) = 0;
+    // }
+    memset(if_.esp, 0, pad_size);
   }
 
   /* push argv[argc], argv[argc - 1], ..., argv[0] */
@@ -115,6 +117,9 @@ start_process (void *cmdline_)
   /* push fake return address */
   if_.esp -= 4;
   *(int *)(if_.esp) = 0;
+
+  /* test argument passing */
+  hex_dump((uintptr_t)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
