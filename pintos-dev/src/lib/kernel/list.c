@@ -269,9 +269,9 @@ list_pop_front (struct list *list)
 struct list_elem *
 list_pop_back (struct list *list)
 {
-  struct list_elem *back = list_back (list);
-  list_remove (back);
-  return back;
+    struct list_elem *back = list_back (list);
+    list_remove (back);
+    return back;
 }
 
 /** Returns the front element in LIST.

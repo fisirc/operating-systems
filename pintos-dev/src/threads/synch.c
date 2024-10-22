@@ -130,34 +130,40 @@ sema_try_down (struct semaphore *sema)
 
    This function may be called from an interrupt handler. */
 void
-sema_up (struct semaphore *sema)
+sema_up (struct semaphore *_sema UNUSED)
 {
-    enum intr_level old_level;
-
+    struct semaphore* sema = _sema;
     ASSERT (sema != NULL);
 
-    old_level = intr_disable ();
+    enum intr_level old_level = intr_disable ();
     sema->value++;
 
     /// FIXME
-    if (!list_empty (&sema->waiters)) {
-        list_sort(&sema->waiters, thread_priority_cmp, NULL);
-        struct thread * max_pr_waiter = list_entry (list_pop_front (&sema->waiters), struct thread, elem);
-        thread_unblock (max_pr_waiter);
-        struct thread * cur = thread_current();
-
-        if (is_interior((&max_pr_waiter->donors_elem)) && max_pr_waiter->waiting_for_thread != NULL) {
-            remove_donation(max_pr_waiter, max_pr_waiter->waiting_for_thread);
-            update_ready_list();
-        }
-
-        if ((max_pr_waiter->priority) > (cur->og_priority)) {
-            thread_yield();
-        }
+    if (list_empty(&sema->waiters)) {
+        intr_set_level (old_level);
+        return;
     }
 
-    if (sema->waiters.head.next != NULL)
-        list_sort(&sema->waiters, thread_priority_cmp, NULL);
+    list_sort(&sema->waiters, thread_priority_cmp, NULL);
+    struct thread* max_pr_waiter = list_entry(list_pop_front(&sema->waiters), struct thread, elem);
+    thread_unblock(max_pr_waiter);
+
+    struct thread * cur = thread_current();
+
+    // this is only a problem when sema_up'ing from idle
+    if (cur == thread_get_idle())
+        return;
+
+    if (is_interior((&max_pr_waiter->donors_elem)) && max_pr_waiter->waiting_for_thread != NULL) {
+        remove_donation(max_pr_waiter, max_pr_waiter->waiting_for_thread);
+        update_ready_list();
+    }
+
+    if ((max_pr_waiter->priority) > (cur->og_priority)) {
+        thread_yield();
+    }
+
+    list_sort(&sema->waiters, thread_priority_cmp, NULL);
     ///
 
     intr_set_level (old_level);

@@ -131,13 +131,12 @@ pintos_init (void)
 
     printf ("Boot complete.\n");
 
-    if (*argv != NULL) {
+    if (*argv != NULL)
         /* Run actions specified on kernel command line. */
         run_actions (argv);
-    } else {
+    else
         // TODO: no command line passed to kernel. Run interactively
         repl_init();
-    }
 
     /* Finish up. */
     shutdown ();

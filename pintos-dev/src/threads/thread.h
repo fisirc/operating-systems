@@ -154,6 +154,7 @@ int thread_get_load_avg (void);
 bool thread_priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 void thread_priority_update (struct thread * t);
 void update_ready_list (void);
+struct thread* thread_get_idle(void);
 ///
 
 #endif /**< threads/thread.h */
