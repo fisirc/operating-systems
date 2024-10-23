@@ -41,7 +41,6 @@ process_execute (const char *cmdline)
   /* Create a new thread to execute FILE_NAME. */
   // char *file_name = strtok_r(cmdline, " ", &cmdline);
   tid = thread_create (cmdline, PRI_DEFAULT, start_process, cmdline_copy);
-  printf("tid: %d\n", tid);
   if (tid == TID_ERROR)
     palloc_free_page (cmdline_copy); 
   return tid;
