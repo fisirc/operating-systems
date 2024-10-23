@@ -39,8 +39,8 @@ process_execute (const char *cmdline)
   strlcpy (cmdline_copy, cmdline, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
-  char *file_name = strtok_r(cmdline, " ", &cmdline);
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, cmdline_copy);
+  // char *file_name = strtok_r(cmdline, " ", &cmdline);
+  tid = thread_create (cmdline, PRI_DEFAULT, start_process, cmdline_copy);
   printf("tid: %d\n", tid);
   if (tid == TID_ERROR)
     palloc_free_page (cmdline_copy); 
@@ -69,15 +69,13 @@ start_process (void *cmdline_)
     thread_exit ();
 
   /* prepare to push arguments to stack */
-  char *cmdline_copy;
-  strlcpy(cmdline_copy, cmdline, strlen(cmdline) + 1);
   int argc = 0;
   int tok_len, total_len = 0;
   char *argv[16];
   char *tok;
 
   /* push contents of arguments */
-  while ((tok = strtok_r(cmdline_copy, " ", &cmdline_copy))) {
+  while ((tok = strtok_r(cmdline, " ", &cmdline))) {
     tok_len = strlen(tok) + 1;
     total_len += tok_len;
     if_.esp -= tok_len;
@@ -143,7 +141,7 @@ start_process (void *cmdline_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  while (1);
 }
 
 /** Free the current process's resources. */
@@ -277,9 +275,7 @@ load (const char *cmdline, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  char *cmdline_copy;
-  strlcpy(cmdline_copy, cmdline, strlen(cmdline) + 1);
-  char *file_name = strtok_r(cmdline_copy, " ", &cmdline_copy);
+  char *file_name = strtok_r(cmdline, " ", &cmdline);
   file = filesys_open (file_name);
   if (file == NULL) 
     {

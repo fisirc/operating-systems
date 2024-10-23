@@ -222,7 +222,8 @@ thread_create (const char *name, int priority,
         return TID_ERROR;
 
     /* Initialize thread. */
-    init_thread (t, name, priority);
+    char* name_ = strtok_r(name, " ", &name);
+    init_thread (t, name_, priority);
     tid = t->tid = allocate_tid ();
 
     /* Stack frame for kernel_thread(). */
