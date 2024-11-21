@@ -63,7 +63,8 @@ start_process (void *cmdline_)
   success = load (cmdline, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
-  palloc_free_page (cmdline);
+  // palloc_free_page (cmdline);
+
   if (!success)
     thread_exit ();
 
