@@ -49,9 +49,8 @@ process_execute (const char *cmdline)
 /** A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *cmdline_)
+start_process (void *cmdline)
 {
-  char *cmdline = cmdline_;
   struct intr_frame if_;
   bool success;
 
@@ -60,7 +59,12 @@ start_process (void *cmdline_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG; 
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (cmdline, &if_.eip, &if_.esp);
+
+  char *cmdline_copy = palloc_get_page(0);
+  if (cmdline_copy == NULL)
+    return TID_ERROR;
+  strlcpy(cmdline_copy, cmdline, PGSIZE);
+  success = load (cmdline_copy, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
   // palloc_free_page (cmdline);
@@ -80,10 +84,10 @@ start_process (void *cmdline_)
     total_len += tok_len;
     if_.esp -= tok_len;
     argv[argc] = if_.esp;
-    // for (int i = 0; i < tok_len; i++) {
-    //   *(char *)(if_.esp + i) = tok[i];
-    // }
-    memcpy(if_.esp, tok, tok_len);
+    for (int i = 0; i < tok_len; i++) {
+      *(char *)(if_.esp + i) = tok[i];
+    }
+    // memcpy(if_.esp, tok, tok_len);
     argc++;
   }
   argv[argc] = 0;
