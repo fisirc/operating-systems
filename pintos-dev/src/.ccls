@@ -3,6 +3,7 @@ gcc
 -Werror
 -Wextra
 -pedantic
+-D USERPROG
 -Ilib/
 -Ilib/kernel
 -Isrc/

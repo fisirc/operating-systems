@@ -158,6 +158,8 @@ repl_init(void)
 
         memset(newline.str, 0, newline.len);
     }
+
+    shutdown();
 }
 
 /** Clear the "BSS", a segment that should be initialized to

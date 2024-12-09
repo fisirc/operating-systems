@@ -62,7 +62,7 @@ in the `cond::waiters` list, this before blocking the thread.
 > will release the mutex. [this is so threads are atomically added to the
 > `waiters` queue]
 
-The thread is not ever going to wake up again unless the sempahore that blocked
+The thread is not ever going to wake up again unless the semaphore that blocked
 it goes up again (that is, by using `sema_up()`).
 
 ```c

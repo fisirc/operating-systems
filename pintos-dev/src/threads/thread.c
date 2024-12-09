@@ -222,8 +222,7 @@ thread_create (const char *name, int priority,
         return TID_ERROR;
 
     /* Initialize thread. */
-    char* name_ = strtok_r(name, " ", &name);
-    init_thread (t, name_, priority);
+    init_thread (t, name, priority);
     tid = t->tid = allocate_tid ();
 
     /* Stack frame for kernel_thread(). */
@@ -246,7 +245,7 @@ thread_create (const char *name, int priority,
 
     /// FIXME
     /* Checking in for the current thread's priority */
-    if (t->priority > thread_get_priority())
+    if (t->priority >= thread_get_priority())
         thread_yield();
     ///
 
