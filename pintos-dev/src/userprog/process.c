@@ -38,51 +38,34 @@ process_execute (const char *cmdline)
     return TID_ERROR;
   strlcpy (cmdline_copy, cmdline, PGSIZE);
 
+  struct pcb_t *pcb = palloc_get_page(0);
+  if (pcb == NULL)
+    return TID_ERROR;
+
+  pcb->cmdline = cmdline_copy;
+  pcb->pid = -1;
+  pcb->exited = false;
+  pcb->exit_status = -1;
+  sema_init(&(pcb->wait_sema), 0);
+  sema_init(&(pcb->load_sema), 0);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (cmdline, PRI_DEFAULT, start_process, cmdline_copy);
+  tid = thread_create (cmdline, PRI_DEFAULT, start_process, pcb);
   
   if (tid == TID_ERROR) {
     palloc_free_page (cmdline_copy);
     return TID_ERROR;
   }
 
-  struct thread *child;
-  while ((child = get_child_by_tid(tid)) == NULL)
-    printf("waiting for child to be created\n");
+  sema_down(&(pcb->load_sema));
 
-  printf("child: %s\n", child->name);
-  sema_down(&(child->pcb->load_sema));
-  
-  return tid;
+  list_push_back(&(thread_current()->children), &(pcb->children_elem));
+
+  return pcb->pid;
 }
 
-/** A thread function that loads a user process and starts it
-   running. */
-static void
-start_process (void *cmdline)
-{
-  struct intr_frame if_;
-  bool success;
-
-  /* Initialize interrupt frame and load executable. */
-  memset (&if_, 0, sizeof if_);
-  if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
-  if_.cs = SEL_UCSEG; 
-  if_.eflags = FLAG_IF | FLAG_MBS;
-
-  char *cmdline_copy = palloc_get_page(0);
-  if (cmdline_copy == NULL)
-    return TID_ERROR;
-  strlcpy(cmdline_copy, cmdline, PGSIZE);
-  success = load (cmdline_copy, &if_.eip, &if_.esp);
-  palloc_free_page (cmdline_copy);
-
-  /* If load failed, quit. */
-  // palloc_free_page (cmdline);
-
-  if (!success)
-    thread_exit ();
-
+void
+pass_args(const char *cmdline, void **esp) {
   /* prepare to push arguments to stack */
   int argc = 0;
   int tok_len, total_len = 0;
@@ -93,12 +76,9 @@ start_process (void *cmdline)
   while ((tok = strtok_r(cmdline, " ", &cmdline))) {
     tok_len = strlen(tok) + 1;
     total_len += tok_len;
-    if_.esp -= tok_len;
-    argv[argc] = if_.esp;
-    // for (int i = 0; i < tok_len; i++) {
-    //   *(char *)(if_.esp + i) = tok[i];
-    // }
-    memcpy(if_.esp, tok, tok_len);
+    *esp -= tok_len;
+    argv[argc] = *esp;
+    memcpy(*esp, tok, tok_len);
     argc++;
   }
   argv[argc] = 0;
@@ -106,35 +86,69 @@ start_process (void *cmdline)
   /* push 4-byte-word align padding */
   int pad_size = 4 - (total_len % 4);
   if (pad_size != 4) {
-    if_.esp -= pad_size;
-    // for (int i = 0; i < pad_size; i++) {
-    //   *(char *)(if_.esp + i) = 0;
-    // }
-    memset(if_.esp, 0, pad_size);
+    *esp -= pad_size;
+    memset(*esp, 0, pad_size);
   }
 
   /* push argv[argc], argv[argc - 1], ..., argv[0] */
   for (int i = argc; i >= 0; i--) {
-    if_.esp -= 4;
-    *(char **)(if_.esp) = argv[i];
+    *esp -= 4;
+    *(char **)(*esp) = argv[i];
   }
 
   /* push pointer to argv[0] */
-  if_.esp -= 4;
-  *(char ***)(if_.esp) = if_.esp + 4;
+  *esp -= 4;
+  *(char ***)(*esp) = *esp + 4;
 
   /* push argc */
-  if_.esp -= 4;
-  *(int *)(if_.esp) = argc;
+  *esp -= 4;
+  *(int *)(*esp) = argc;
 
   /* push fake return address */
-  if_.esp -= 4;
-  *(int *)(if_.esp) = 0;
+  *esp -= 4;
+  *(int *)(*esp) = 0;
+}
+
+/** A thread function that loads a user process and starts it
+   running. */
+static void
+start_process (void *_pcb)
+{
+  struct intr_frame if_;
+  bool success;
+  struct pcb_t *pcb = _pcb;
+  const char* cmdline = pcb->cmdline;
+
+  /* Initialize interrupt frame and load executable. */
+  memset (&if_, 0, sizeof if_);
+  if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
+  if_.cs = SEL_UCSEG; 
+  if_.eflags = FLAG_IF | FLAG_MBS;
+
+  char *cmdline_copy = palloc_get_page(0);
+
+  if (cmdline_copy == NULL)
+    return TID_ERROR;
+
+  strlcpy(cmdline_copy, cmdline, PGSIZE);
+
+  success = load (cmdline_copy, &if_.eip, &if_.esp);
+  palloc_free_page (cmdline_copy);
+
+  if (!success)
+    thread_exit ();
+
+  pass_args(cmdline, &(if_.esp));
 
   /* test argument passing */
   hex_dump((uintptr_t)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
-  sema_up(&(thread_current()->pcb->load_sema));
+  printf("argument passing done\n");
+
+  struct thread *cur = thread_current();
+  cur->pcb = pcb;
+  cur->pcb->pid = cur->tid;
+  sema_up(&(cur->pcb->load_sema));
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -159,12 +173,10 @@ start_process (void *cmdline)
 int
 process_wait (tid_t child_tid) 
 {
-  struct thread *child = get_child_by_tid(child_tid);
+  struct pcb_t *child_pcb = get_child_pcb(child_tid);
 
-  if (child == NULL)
+  if (child_pcb == NULL)
     return -1;
-
-  struct pcb_t *child_pcb = child->pcb;
 
   if (child_pcb->exited)
     return -1;

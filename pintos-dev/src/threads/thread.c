@@ -188,20 +188,6 @@ thread_print_stats (void)
   printf ("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
           idle_ticks, kernel_ticks, user_ticks);
 }
-
-void
-init_pcb_of_thread (struct thread *t) {
-  t->pcb = palloc_get_page(0);
-
-  if (t->pcb == NULL)
-    return TID_ERROR;
-
-  t->pcb->exited = false;
-  t->pcb->exit_status = -1;
-  sema_init(&(t->pcb->wait_sema), 0);
-  sema_init(&(t->pcb->load_sema), 0);
-}
-
 /** Creates a new kernel thread named NAME with the given initial
    PRIORITY, which executes FUNCTION passing AUX as the argument,
    and adds it to the ready queue.  Returns the thread identifier
@@ -254,12 +240,6 @@ thread_create (const char *name, int priority,
     sf = alloc_frame (t, sizeof *sf);
     sf->eip = switch_entry;
     sf->ebp = 0;
-
-    /* Initialize PCB */
-    #ifdef USERPROG
-    init_pcb_of_thread(t);
-    list_push_back(&(cur->children), &(t->child_elem));
-    #endif
 
     /* Add to run queue. */
     thread_unblock (t);
@@ -736,22 +716,22 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-struct thread *
-get_child_by_tid(tid_t tid)
+struct pcb_t *
+get_child_pcb(tid_t tid)
 {
-  struct thread *cur = thread_current ();
+  struct thread *cur = thread_current();
   struct list *children = &(cur->children);
+  
+  if (list_empty(children))
+    return NULL;
   
   struct list_elem *it = list_begin(children);
   struct list_elem *end = list_end(children);
 
   while (it != end) {
-    struct thread *entry = list_entry(it, struct thread, child_elem);
+    struct pcb_t *entry = list_entry(it, struct pcb_t, children_elem);
 
-    if (!is_thread (entry))
-      return NULL;
-    
-    if (entry->tid == tid)
+    if (entry->pid == tid)
       return entry;
 
     it = list_next(it);

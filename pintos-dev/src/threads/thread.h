@@ -15,14 +15,6 @@ enum thread_status
     THREAD_DYING        /**< About to be destroyed. */
   };
 
-struct pcb_t
-{
-   struct semaphore wait_sema;
-   struct semaphore load_sema;
-   bool exited;
-   int exit_status;
-};
-
 /** Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
@@ -108,9 +100,8 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /**< List element. */
 
-    struct pcb_t *pcb;                    /**< Process control block. */
+    struct pcb_t *pcb;                  /**< Process control block. */
     struct list children;               /**< List of child processes. */
-    struct list_elem child_elem;        /**< List element for the children list. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -162,7 +153,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-struct thread *get_child_by_tid(tid_t tid);
+struct pcb_t* get_child_pcb(tid_t tid);
 
 /// FIXME
 bool thread_priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
