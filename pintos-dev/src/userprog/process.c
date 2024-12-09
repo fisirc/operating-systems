@@ -40,8 +40,19 @@ process_execute (const char *cmdline)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (cmdline, PRI_DEFAULT, start_process, cmdline_copy);
-  if (tid == TID_ERROR)
-    palloc_free_page (cmdline_copy); 
+  
+  if (tid == TID_ERROR) {
+    palloc_free_page (cmdline_copy);
+    return TID_ERROR;
+  }
+
+  struct thread *child;
+  while ((child = get_child_by_tid(tid)) == NULL)
+    printf("waiting for child to be created\n");
+
+  printf("child: %s\n", child->name);
+  sema_down(&(child->pcb->load_sema));
+  
   return tid;
 }
 
@@ -123,12 +134,15 @@ start_process (void *cmdline)
   /* test argument passing */
   hex_dump((uintptr_t)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
+  sema_up(&(thread_current()->pcb->load_sema));
+
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
+
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
@@ -145,7 +159,19 @@ start_process (void *cmdline)
 int
 process_wait (tid_t child_tid) 
 {
-  // while (1);
+  struct thread *child = get_child_by_tid(child_tid);
+
+  if (child == NULL)
+    return -1;
+
+  struct pcb_t *child_pcb = child->pcb;
+
+  if (child_pcb->exited)
+    return -1;
+
+  sema_down (&(child_pcb->wait_sema));
+
+  return child_pcb->exit_status;
 }
 
 /** Free the current process's resources. */
@@ -171,6 +197,14 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  struct pcb_t *pcb = cur->pcb;
+  pcb->exit_status = 0;
+  pcb->exited = true;
+
+  printf("%s: exit(%d)\n", cur->name, pcb->exit_status);
+
+  sema_up(&(pcb->wait_sema));
 }
 
 /** Sets up the CPU for running user code in the current

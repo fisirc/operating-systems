@@ -189,6 +189,19 @@ thread_print_stats (void)
           idle_ticks, kernel_ticks, user_ticks);
 }
 
+void
+init_pcb_of_thread (struct thread *t) {
+  t->pcb = palloc_get_page(0);
+
+  if (t->pcb == NULL)
+    return TID_ERROR;
+
+  t->pcb->exited = false;
+  t->pcb->exit_status = -1;
+  sema_init(&(t->pcb->wait_sema), 0);
+  sema_init(&(t->pcb->load_sema), 0);
+}
+
 /** Creates a new kernel thread named NAME with the given initial
    PRIORITY, which executes FUNCTION passing AUX as the argument,
    and adds it to the ready queue.  Returns the thread identifier
@@ -209,6 +222,7 @@ thread_create (const char *name, int priority,
                thread_func *function, void *aux)
 {
     struct thread *t;
+    struct thread *cur = thread_current();
     struct kernel_thread_frame *kf;
     struct switch_entry_frame *ef;
     struct switch_threads_frame *sf;
@@ -240,6 +254,12 @@ thread_create (const char *name, int priority,
     sf = alloc_frame (t, sizeof *sf);
     sf->eip = switch_entry;
     sf->ebp = 0;
+
+    /* Initialize PCB */
+    #ifdef USERPROG
+    init_pcb_of_thread(t);
+    list_push_back(&(cur->children), &(t->child_elem));
+    #endif
 
     /* Add to run queue. */
     thread_unblock (t);
@@ -599,6 +619,7 @@ init_thread (struct thread *t, const char *name, int priority)
     old_level = intr_disable ();
     list_push_back (&all_list, &t->allelem);
     intr_set_level (old_level);
+    list_init(&(t->children));
 }
 
 /** Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -714,3 +735,27 @@ allocate_tid (void)
 /** Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+struct thread *
+get_child_by_tid(tid_t tid)
+{
+  struct thread *cur = thread_current ();
+  struct list *children = &(cur->children);
+  
+  struct list_elem *it = list_begin(children);
+  struct list_elem *end = list_end(children);
+
+  while (it != end) {
+    struct thread *entry = list_entry(it, struct thread, child_elem);
+
+    if (!is_thread (entry))
+      return NULL;
+    
+    if (entry->tid == tid)
+      return entry;
+
+    it = list_next(it);
+  }
+
+  return NULL;
+}
