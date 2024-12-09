@@ -39,7 +39,6 @@ process_execute (const char *cmdline)
   strlcpy (cmdline_copy, cmdline, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
-  // char *file_name = strtok_r(cmdline, " ", &cmdline);
   tid = thread_create (cmdline, PRI_DEFAULT, start_process, cmdline_copy);
   if (tid == TID_ERROR)
     palloc_free_page (cmdline_copy); 
@@ -65,6 +64,7 @@ start_process (void *cmdline)
     return TID_ERROR;
   strlcpy(cmdline_copy, cmdline, PGSIZE);
   success = load (cmdline_copy, &if_.eip, &if_.esp);
+  palloc_free_page (cmdline_copy);
 
   /* If load failed, quit. */
   // palloc_free_page (cmdline);
@@ -84,10 +84,10 @@ start_process (void *cmdline)
     total_len += tok_len;
     if_.esp -= tok_len;
     argv[argc] = if_.esp;
-    for (int i = 0; i < tok_len; i++) {
-      *(char *)(if_.esp + i) = tok[i];
-    }
-    // memcpy(if_.esp, tok, tok_len);
+    // for (int i = 0; i < tok_len; i++) {
+    //   *(char *)(if_.esp + i) = tok[i];
+    // }
+    memcpy(if_.esp, tok, tok_len);
     argc++;
   }
   argv[argc] = 0;
@@ -143,9 +143,9 @@ start_process (void *cmdline)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  while (1);
+  // while (1);
 }
 
 /** Free the current process's resources. */
