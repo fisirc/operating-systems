@@ -65,7 +65,7 @@ process_execute (const char *cmdline)
 }
 
 void
-pass_args(const char *cmdline, void **esp) {
+pass_args_deprecated(const char *cmdline, void **esp) {
   /* prepare to push arguments to stack */
   int argc = 0;
   int tok_len, total_len = 0;
@@ -114,31 +114,85 @@ pass_args(const char *cmdline, void **esp) {
 static void
 start_process (void *_pcb)
 {
-  struct intr_frame if_;
-  bool success;
   struct pcb_t *pcb = _pcb;
+
   const char* cmdline = pcb->cmdline;
 
+  char *cmdline_copy = palloc_get_page(0);
+  if (cmdline_copy == NULL)
+    return TID_ERROR;
+  strlcpy(cmdline_copy, cmdline, PGSIZE);
+
+  size_t cmd_len = strlen(cmdline) + 1;
+
+  char* cursor = cmdline;
+
+#define MAX_ARGC 512
+  uint32_t argv_offset[MAX_ARGC];
+  uint32_t argc = 0;
+
+  char* tk = NULL;
+  while ((tk = strtok_r(cursor, " ", &cursor))) {
+    argv_offset[argc] = tk - cmdline;
+
+    if (argc == MAX_ARGC)
+      break;
+
+    argc++;
+  }
+
   /* Initialize interrupt frame and load executable. */
+  struct intr_frame if_;
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG; 
   if_.eflags = FLAG_IF | FLAG_MBS;
 
-  char *cmdline_copy = palloc_get_page(0);
-
-  if (cmdline_copy == NULL)
-    return TID_ERROR;
-
-  strlcpy(cmdline_copy, cmdline, PGSIZE);
-
-  success = load (cmdline_copy, &if_.eip, &if_.esp);
-  palloc_free_page (cmdline_copy);
-
+  bool success = load (cmdline_copy, &if_.eip, &if_.esp);
+  // palloc_free_page (cmdline_copy);
   if (!success)
     thread_exit ();
 
-  pass_args(cmdline, &(if_.esp));
+  // pass_args_deprecated(cmdline, &(if_.esp));
+
+  char* esp = (char*) if_.esp;
+  esp -= cmd_len;
+
+  // argv[0..argc][...]
+  // may have a-little-too-big gaps
+  memcpy(esp, cmdline, cmd_len);
+
+  char* argv_head = esp;
+
+  // argv[argc] shall be NULL
+  esp -= sizeof(void*);
+  memset(esp, 0, sizeof(void*));
+
+  // argv[0..argc]
+  for (uint32_t index = argc - 1;; index--) {
+    esp -= sizeof(char*);
+
+    char* addr = argv_head + argv_offset[index];
+    memcpy(esp, &addr, sizeof(char*));
+
+    if (index == 0)
+      break;
+  }
+
+  // argv ptr
+  char* argv_ptr = esp;
+  esp -= sizeof(char*);
+  memcpy(esp, &argv_ptr, sizeof(char*));
+
+  // argc
+  esp -= sizeof(int);
+  memcpy(esp, &argc, sizeof(int));
+
+  // that one null
+  esp -= sizeof(void*);
+  memset(esp, 0, sizeof(void*));
+
+  if_.esp = (void*) esp;
 
   /* test argument passing */
   hex_dump((uintptr_t)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
