@@ -6,8 +6,42 @@
 #include <threads/io.h>
 #include <devices/shutdown.h>
 #include <filesys/file.h>
+#include <threads/vaddr.h>
 
 static void syscall_handler (struct intr_frame *);
+
+void*
+validate_addr(void* addr, uint8_t bytesize)
+{
+    uint8_t* byte_aligned_addr = (uint8_t*) addr;
+
+    if (byte_aligned_addr == NULL ||
+        !is_user_vaddr(byte_aligned_addr) ||
+        ((void*) byte_aligned_addr) >= PHYS_BASE
+    ){
+        thread_current()->pcb.xstat = -1;
+        thread_exit();
+        return NULL;
+    }
+
+    if (bytesize == 0)
+        return addr;
+
+    uint8_t* byte_aligned_addr_padded = ((uint8_t*) addr) + bytesize;
+
+    if (byte_aligned_addr_padded == NULL ||
+        !is_user_vaddr(byte_aligned_addr_padded) ||
+        ((void*) byte_aligned_addr_padded) >= PHYS_BASE
+    ) {
+        thread_current()->pcb.xstat = -1;
+        thread_exit();
+        return NULL;
+    }
+
+    return addr;
+}
+
+#define get_valid(addr, type) *(type*) validate_addr(addr, sizeof(type))
 
 void
 syscall_init (void)
@@ -26,7 +60,7 @@ sys_halt(struct intr_frame *f UNUSED)
 void
 sys_exit(struct intr_frame *f)
 {
-    uint32_t status = *((uint32_t*) f->esp + 1);
+    uint32_t status = get_valid((uint32_t*) f->esp + 1, uint32_t);
 
     thread_current()->pcb.xstat = status;
     thread_current()->pcb.proc_stat = EXITED;
@@ -36,10 +70,11 @@ sys_exit(struct intr_frame *f)
 int
 sys_write(struct intr_frame *f)
 {
-    void* esp = f->esp;
-    uint32_t fd = *((uint32_t*) esp + 1);
-    char* buf = *((char**) esp + 2);
-    uint32_t size = *((uint32_t*) esp + 3);
+    void* esp = validate_addr(f->esp, 0);
+
+    uint32_t fd = get_valid((uint32_t*) esp + 1, uint32_t);
+    char* buf = get_valid((char**) esp + 2, char*);
+    uint32_t size = get_valid((uint32_t*) esp + 3, uint32_t);
 
     f->eax = size;
     if (fd == 1) {
@@ -53,6 +88,12 @@ sys_write(struct intr_frame *f)
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
+    if (!validate_addr(f->esp, 0)) {
+        thread_current()->pcb.xstat = -1;
+        thread_exit();
+        return;
+    }
+
     enum syscall_code code = *(enum syscall_code*) f->esp;
 
     switch (code) {
