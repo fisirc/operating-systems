@@ -78,19 +78,6 @@ start_process (void *_cmd UNUSED)
         argc++;
     }
 
-#define ARGSPRINT(...) //printf("(args) " __VA_ARGS__);
-    ARGSPRINT("begin\n");
-    ARGSPRINT("argc = %u\n", argc);
-
-    size_t argv_index = 0x00;
-    while (argv_index < argc) {
-        ARGSPRINT("argv[%lu] = '%s'\n", argv_index, cmd + argv_offset[argv_index]);
-        argv_index++;
-    }
-
-    ARGSPRINT("argv[%lu] = %s\n", argv_index, "null");
-    ARGSPRINT("end\n");
-
     /* Initialize interrupt frame and load executable. */
     struct intr_frame if_;
     memset (&if_, 0, sizeof if_);
