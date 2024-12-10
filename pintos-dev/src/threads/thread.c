@@ -267,13 +267,6 @@ thread_create (const char *name, int priority,
     thread_unblock (t);
 
     /// FIXME
-    /* managing the userprog processes' pcb's */
-    t->pcb.owner = t;
-    t->pcb.tid = t->tid;
-
-    struct thread* thr_current = thread_current();
-    list_push_back(&thr_current->pcb.children, &t->pcb.elem);
-
     /* Checking in for the current thread's priority */
     if (t->priority >= thread_get_priority())
         thread_yield();
@@ -627,8 +620,8 @@ init_thread (struct thread *t, const char *name, int priority)
 
 /// FIXME
     list_init(&t->donor_list);
-    list_init(&t->pcb.children);
     sema_init(&t->pcb.wait_lock, 0);
+    t->pcb.proc_stat = RUNNING;
 ///
 
     old_level = intr_disable ();

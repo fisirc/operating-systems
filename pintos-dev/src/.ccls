@@ -6,6 +6,7 @@ gcc
 -D USERPROG
 -Ilib/
 -Ilib/kernel
+-Ilib/user
 -Isrc/
 -I./
 -nostdinc

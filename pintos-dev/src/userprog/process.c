@@ -78,7 +78,7 @@ start_process (void *_cmd UNUSED)
         argc++;
     }
 
-#define ARGSPRINT(...) printf("(args) " __VA_ARGS__);
+#define ARGSPRINT(...) //printf("(args) " __VA_ARGS__);
     ARGSPRINT("begin\n");
     ARGSPRINT("argc = %u\n", argc);
 
@@ -164,20 +164,24 @@ start_process (void *_cmd UNUSED)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-    DEBUGPRINT("process_wait was called from thread %d\n", thread_current()->tid);
+    //DEBUGPRINT("process_wait was called from thread %d\n", thread_current()->tid);
     struct thread* child_thr = find_by_tid(child_tid);
-    DEBUGPRINT("found! %d, thread %d is getting locked away...\n", child_thr->tid, thread_current()->tid);
-    sema_down(&child_thr->pcb.wait_lock);
-    DEBUGPRINT("thread %d was unlocked\n", thread_current()->tid);
+    if (child_thr == NULL)
+        return -1;
 
-    return -1;
+    //DEBUGPRINT("found! %d, thread %d is getting locked away...\n", child_thr->tid, thread_current()->tid);
+    if (child_thr->pcb.proc_stat == RUNNING)
+        sema_down(&child_thr->pcb.wait_lock);
+    //DEBUGPRINT("thread %d was unlocked\n", thread_current()->tid);
+
+    return child_thr->pcb.xstat;
 }
 
 /** Free the current process's resources. */
 void
 process_exit (void)
 {
-    DEBUGPRINT("process_exit was called from thread %d\n", thread_current()->tid);
+    //DEBUGPRINT("process_exit was called from thread %d\n", thread_current()->tid);
     struct thread *cur = thread_current ();
     uint32_t *pd;
 
@@ -197,10 +201,10 @@ process_exit (void)
         pagedir_activate (NULL);
         pagedir_destroy (pd);
     }
-    printf ("%s: exit(%d)\n", cur->name, 0);
-    DEBUGPRINT("unlocking thread %d...\n", cur->tid);
+    printf ("%s: exit(%d)\n", cur->name, cur->pcb.xstat);
+    //DEBUGPRINT("unlocking thread %d...\n", cur->tid);
     sema_up(&cur->pcb.wait_lock);
-    DEBUGPRINT("unlocked! thread %d...\n", cur->tid);
+    //DEBUGPRINT("unlocked! thread %d...\n", cur->tid);
 }
 
 /** Sets up the CPU for running user code in the current
