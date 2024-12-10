@@ -23,7 +23,7 @@ int vsnprintf (char *, size_t, const char *, va_list) PRINTF_FORMAT (3, 0);
 int putchar (int);
 int puts (const char *);
 
-#define DEBUGPRINT(...) printf("[debug] " __VA_ARGS__);
+#define DEBUGPRINT(...) //printf("[debug] " __VA_ARGS__);
 
 /** Nonstandard functions. */
 void hex_dump (uintptr_t ofs, const void *, size_t size, bool ascii);

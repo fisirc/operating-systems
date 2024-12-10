@@ -103,6 +103,16 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /**< Page directory. */
+    struct proc_controlblock {
+        enum process_stat {
+            RUNNING,
+            EXITED,
+        } proc_stat;
+
+        int xstat;
+
+        struct semaphore wait_lock;
+    } pcb;
 #endif
 
     /* Owned by devices/timer.c */
@@ -111,6 +121,9 @@ struct thread
     /* Owned by thread.c. */
     uint32_t magic;                     /**< Detects stack overflow. */
 };
+
+/** Returns the thread which `tid` is tid */
+struct thread* find_by_tid(tid_t);
 
 /** If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

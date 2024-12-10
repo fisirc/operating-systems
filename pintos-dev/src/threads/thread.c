@@ -77,6 +77,29 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+struct thread*
+find_by_tid(tid_t tid)
+{
+    size_t size;
+    ASSERT(!list_empty(&all_list));
+    ASSERT(tid != 0x00);
+    ASSERT ((size = list_size(&all_list)) != 0);
+
+    struct list_elem* th_cursor = list_head(&all_list);
+    struct list_elem* end_cursor = list_end(&all_list);
+
+    while (th_cursor->next != end_cursor) {
+        th_cursor = th_cursor->next;
+
+        struct thread* thread_el = list_entry(th_cursor, struct thread, allelem);
+
+        if (thread_el->tid == tid)
+            return thread_el;
+    }
+
+    return NULL;
+}
+
 /** Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -244,6 +267,13 @@ thread_create (const char *name, int priority,
     thread_unblock (t);
 
     /// FIXME
+    /* managing the userprog processes' pcb's */
+    t->pcb.owner = t;
+    t->pcb.tid = t->tid;
+
+    struct thread* thr_current = thread_current();
+    list_push_back(&thr_current->pcb.children, &t->pcb.elem);
+
     /* Checking in for the current thread's priority */
     if (t->priority >= thread_get_priority())
         thread_yield();
@@ -585,15 +615,21 @@ init_thread (struct thread *t, const char *name, int priority)
 
     memset (t, 0, sizeof *t);
     t->status = THREAD_BLOCKED;
-    strlcpy (t->name, name, sizeof t->name);
+
+    char* cursor = (char*) name;
+    char* tok_name = strtok_r(cursor, " ", &cursor);
+    strlcpy (t->name, tok_name, sizeof t->name);
+
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
     t->og_priority = priority;
     t->magic = THREAD_MAGIC;
 
-    /// FIXME
+/// FIXME
     list_init(&t->donor_list);
-    ///
+    list_init(&t->pcb.children);
+    sema_init(&t->pcb.wait_lock, 0);
+///
 
     old_level = intr_disable ();
     list_push_back (&all_list, &t->allelem);

@@ -62,6 +62,7 @@ start_process (void *_cmd UNUSED)
     uint32_t argc = 0;
 
     char* tk = NULL;
+
     while ((tk = strtok_r(cursor, " ", &cursor))) {
         if (argc == 0) {
             file_name = tk;
@@ -76,6 +77,19 @@ start_process (void *_cmd UNUSED)
 
         argc++;
     }
+
+#define ARGSPRINT(...) printf("(args) " __VA_ARGS__);
+    ARGSPRINT("begin\n");
+    ARGSPRINT("argc = %u\n", argc);
+
+    size_t argv_index = 0x00;
+    while (argv_index < argc) {
+        ARGSPRINT("argv[%lu] = '%s'\n", argv_index, cmd + argv_offset[argv_index]);
+        argv_index++;
+    }
+
+    ARGSPRINT("argv[%lu] = %s\n", argv_index, "null");
+    ARGSPRINT("end\n");
 
     /* Initialize interrupt frame and load executable. */
     struct intr_frame if_;
@@ -150,6 +164,12 @@ start_process (void *_cmd UNUSED)
 int
 process_wait (tid_t child_tid UNUSED)
 {
+    DEBUGPRINT("process_wait was called from thread %d\n", thread_current()->tid);
+    struct thread* child_thr = find_by_tid(child_tid);
+    DEBUGPRINT("found! %d, thread %d is getting locked away...\n", child_thr->tid, thread_current()->tid);
+    sema_down(&child_thr->pcb.wait_lock);
+    DEBUGPRINT("thread %d was unlocked\n", thread_current()->tid);
+
     return -1;
 }
 
@@ -157,25 +177,30 @@ process_wait (tid_t child_tid UNUSED)
 void
 process_exit (void)
 {
-  struct thread *cur = thread_current ();
-  uint32_t *pd;
+    DEBUGPRINT("process_exit was called from thread %d\n", thread_current()->tid);
+    struct thread *cur = thread_current ();
+    uint32_t *pd;
 
-  /* Destroy the current process's page directory and switch back
-     to the kernel-only page directory. */
-  pd = cur->pagedir;
-  if (pd != NULL)
+    /* Destroy the current process's page directory and switch back
+       to the kernel-only page directory. */
+    pd = cur->pagedir;
+    if (pd != NULL)
     {
-      /* Correct ordering here is crucial.  We must set
-         cur->pagedir to NULL before switching page directories,
-         so that a timer interrupt can't switch back to the
-         process page directory.  We must activate the base page
-         directory before destroying the process's page
-         directory, or our active page directory will be one
-         that's been freed (and cleared). */
-      cur->pagedir = NULL;
-      pagedir_activate (NULL);
-      pagedir_destroy (pd);
+        /* Correct ordering here is crucial.  We must set
+           cur->pagedir to NULL before switching page directories,
+           so that a timer interrupt can't switch back to the
+           process page directory.  We must activate the base page
+           directory before destroying the process's page
+           directory, or our active page directory will be one
+           that's been freed (and cleared). */
+        cur->pagedir = NULL;
+        pagedir_activate (NULL);
+        pagedir_destroy (pd);
     }
+    printf ("%s: exit(%d)\n", cur->name, 0);
+    DEBUGPRINT("unlocking thread %d...\n", cur->tid);
+    sema_up(&cur->pcb.wait_lock);
+    DEBUGPRINT("unlocked! thread %d...\n", cur->tid);
 }
 
 /** Sets up the CPU for running user code in the current
