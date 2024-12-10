@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "synch.h"
+#include <hash.h>
 
 /** States in a thread's life cycle. */
 enum thread_status
@@ -114,6 +115,9 @@ struct thread
         struct semaphore wait_lock;
     } pcb;
 #endif
+
+    void *esp;
+    struct hash spt;
 
     /* Owned by devices/timer.c */
     int64_t wakeup_tick;               /**< Thread-blocking sleep */
