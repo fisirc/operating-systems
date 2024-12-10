@@ -139,9 +139,10 @@ sema_up (struct semaphore *_sema UNUSED)
     sema->value++;
 
     /// FIXME
-    if (list_empty(&sema->waiters)) {
-        intr_set_level (old_level);
-        return;
+    if (!list_empty (&sema->waiters)) {
+    list_sort (&sema->waiters, compare_thread_priority, NULL);
+    thread_unblock (list_entry (list_pop_front (&sema->waiters),
+                                struct thread, elem));
     }
 
     list_sort(&sema->waiters, thread_priority_cmp, NULL);
@@ -166,10 +167,9 @@ sema_up (struct semaphore *_sema UNUSED)
     list_sort(&sema->waiters, thread_priority_cmp, NULL);
     ///
 
+    thread_preepmt ();
     intr_set_level (old_level);
 }
-
-
 
 static void sema_test_helper (void *sema_);
 

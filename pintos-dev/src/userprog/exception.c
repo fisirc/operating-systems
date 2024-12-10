@@ -127,6 +127,8 @@ page_fault (struct intr_frame *f)
   bool user;         /**< True: access by user, false: access by kernel. */
   void *fault_addr;  /**< Fault address. */
 
+  void *kpage;
+
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
      data.  It is not necessarily the address of the instruction
@@ -147,6 +149,8 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
+
+  sys_exit (-1);
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
